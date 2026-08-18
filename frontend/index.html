@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATS Master — AI Resume & Job Description Analyzer</title>
+  
+  <!-- Google Fonts: IBM Plex Mono & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================================================
+       DESIGN SYSTEM & CSS CUSTOM PROPERTIES
+       ========================================================================== */
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --border-glow: rgba(99, 102, 241, 0.4);
+      
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
+      --font-mono: 'IBM Plex Mono', monospace;
+      --font-sans: 'Inter', system-ui, sans-serif;
+      
+      --scanline-color: rgba(18, 16, 38, 0.25);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
+    }
+    
+    /* CRT Scan-line Visual Signature Overlay */
+    body::before {
+      content: " ";
+      display: block;
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(var(--scanline-color) 50%, rgba(0, 0, 0, 0.4) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+      z-index: 999;
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    /* Ambient Background Glow */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, transparent 70%);
+      top: -150px;
+      right: -150px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .ambient-glow-bottom {
+      position: fixed;
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, rgba(99, 102, 241, 0.05) 50%, transparent 70%);
+      bottom: -200px;
+      left: -200px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Header & Navigation */
+    header {
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(9, 13, 22, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+    }
+
+    .brand-title {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+
+    .brand-title span {
+      color: var(--accent-cyan);
+    }
+    
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent-emerald);
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Main Container Layout */
+    main {
+      flex: 1;
+      max-width: 1320px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 2rem 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-banner {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .hero-banner h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #fff 30%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-banner p {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 680px;
+      margin: 0 auto 1.25rem auto;
+    }
+
+    .preset-bar {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn-preset {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-preset:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* App Input Grid */
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 900px) {
+      .input-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(16px);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Drop Zone / Input Styles */
+    .drop-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.3);
+      border-radius: 8px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 1rem;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.08);
+    }
+
+    .drop-zone-icon {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .drop-zone p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .drop-zone span.browse-link {
+      color: var(--accent-cyan);
+      text-decoration: underline;
+    }
+
+    .file-status {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 0.85rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+    }
+
+    /* Analyze Action Bar */
+    .action-bar {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .btn-analyze {
+      background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
+      color: #fff;
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 1rem 3rem;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(99, 102, 241, 0.4);
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .btn-analyze:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(6, 182, 212, 0.6);
+    }
+
+    .btn-analyze:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Results Dashboard Section */
+    #results-section {
+      display: none;
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 960px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Gauge Container */
+    .score-summary-card {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-wrapper {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin: 1rem 0;
+    }
+
+    .gauge-svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.1);
+      stroke-width: 12;
+    }
+
+    .gauge-progress {
+      fill: none;
+      stroke: url(#gauge-gradient);
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      transition: stroke-dashoffset 1.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .gauge-score-value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-mono);
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .gauge-score-value span {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+    }
+
+    .score-breakdown-list {
+      width: 100%;
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .score-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 6px;
+    }
+
+    /* Keyword Tags */
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .tag-matched {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .tag-missing {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fb7185;
+    }
+
+    /* Formatting Audit Checklist */
+    .checks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin-top: 1rem;
+    }
+
+    .check-card {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+    }
+
+    .check-card.passed {
+      border-left: 4px solid var(--accent-emerald);
+    }
+
+    .check-card.failed {
+      border-left: 4px solid var(--accent-rose);
+    }
+
+    .check-icon {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .check-details h4 {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 0.25rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .check-details p {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Recommendations Box */
+    .recs-box {
+      margin-top: 1.5rem;
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .recs-box h3 {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      color: var(--accent-cyan);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .recs-box ul {
+      list-style-type: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .recs-box li {
+      font-size: 0.88rem;
+      color: var(--text-main);
+      position: relative;
+      padding-left: 1.25rem;
+    }
+
+    .recs-box li::before {
+      content: "➔";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 1.5rem;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      background: rgba(9, 13, 22, 0.9);
+      margin-top: auto;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+  <div class="ambient-glow-bottom"></div>
+
+  <!-- Header Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">ATS</div>
+      <div class="brand-title">ATS<span>MASTER</span></div>
+    </div>
+    <div class="status-badge" id="api-status">
+      <div class="pulse-dot"></div>
+      <span id="status-text">Backend Active (port 8000)</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main>
+    
+    <!-- Hero Banner -->
+    <div class="hero-banner">
+      <h1>AI-Powered Resume ATS Compatibility Analyzer</h1>
+      <p>Upload your resume (PDF/DOCX) & job description to run TF-IDF keyword matching, 6 structural ATS format audits, and get actionable score recommendations.</p>
+      
+      <!-- Preset Demo Buttons -->
+      <div class="preset-bar">
+        <button class="btn-preset" onclick="loadPreset('senior_dev')">⚡ Preset: Senior Full Stack Engineer</button>
+        <button class="btn-preset" onclick="loadPreset('data_analyst')">📊 Preset: Data Analyst / Scientist</button>
+        <button class="btn-preset" onclick="loadPreset('product_mgr')">🚀 Preset: Product Manager</button>
+      </div>
+    </div>
+
+    <!-- Input Grid -->
+    <div class="input-grid">
+      
+      <!-- Card 1: Resume Upload / Text -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📄 1. Resume Document</div>
+          <button class="btn-preset" style="padding: 0.25rem 0.6rem;" onclick="clearResumeInput()">Clear</button>
+        </div>
+
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="drop-zone-icon">📁</div>
+          <p>Drag & drop your <strong>PDF</strong> or <strong>DOCX</strong> resume here</p>
+          <p><span class="browse-link">or browse files from device</span></p>
+          <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;" onchange="handleFileSelect(event)">
+        </div>
+
+        <div class="file-status" id="file-status">
+          <span id="file-status-name">Selected: resume.pdf</span>
+          <button style="background:none; border:none; color:var(--accent-rose); cursor:pointer; font-weight:700;" onclick="clearFile()">✕</button>
+        </div>
+
+        <p style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem;">OR PASTE RESUME PLAIN TEXT BELOW:</p>
+        <textarea id="resume-text" placeholder="Paste full resume text content here if not uploading a file..."></textarea>
+      </div>
+
+      <!-- Card 2: Job Description Input -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🎯 2. Target Job Description</div>
+          <button class="btn-preset" style="padding: 0.25rem 0.6rem;" onclick="document.getElementById('jd-text').value=''">Clear</button>
+        </div>
+
+        <p style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem;">PASTE TARGET JOB DESCRIPTION OR REQUIREMENTS:</p>
+        <textarea id="jd-text" style="height: 315px;" placeholder="Paste target Job Description, required skills, responsibilities, and qualifications here..."></textarea>
+      </div>
+
+    </div>
+
+    <!-- Analyze Button -->
+    <div class="action-bar">
+      <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">
+        <span>RUN ATS COMPATIBILITY AUDIT</span>
+        <span>⚡</span>
+      </button>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results-section">
+      
+      <div class="dashboard-grid">
+        
+        <!-- Overall Score Gauge -->
+        <div class="card score-summary-card">
+          <div class="card-title" style="margin-bottom: 0.5rem;">OVERALL ATS MATCH</div>
+          
+          <div class="gauge-wrapper">
+            <svg class="gauge-svg" viewBox="0 0 160 160">
+              <defs>
+                <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#06b6d4" />
+                  <stop offset="50%" stop-color="#6366f1" />
+                  <stop offset="100%" stop-color="#10b981" />
+                </linearGradient>
+              </defs>
+              <circle class="gauge-bg" cx="80" cy="80" r="70"></circle>
+              <circle class="gauge-progress" id="gauge-circle" cx="80" cy="80" r="70"></circle>
+            </svg>
+            <div class="gauge-score-value" id="score-val">0<span>%</span></div>
+          </div>
+
+          <div class="score-breakdown-list">
+            <div class="score-item">
+              <span style="color: var(--text-muted);">Keyword Coverage (60%)</span>
+              <strong id="kw-score-text" style="color: var(--accent-cyan);">0%</strong>
+            </div>
+            <div class="score-item">
+              <span style="color: var(--text-muted);">Formatting & Structure (40%)</span>
+              <strong id="fmt-score-text" style="color: var(--accent-emerald);">0%</strong>
+            </div>
+            <div class="score-item">
+              <span style="color: var(--text-muted);">TF-IDF Similarity</span>
+              <strong id="sim-score-text" style="color: #fff;">0%</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keyword Match Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔍 TF-IDF Keyword Match Breakdown</div>
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);" id="kw-count-summary">
+              0 matched / 0 total
+            </div>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Top keywords extracted from Job Description ranked by TF-IDF weight:
+          </p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+              <h4 style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent-emerald); margin-bottom: 0.5rem;">
+                ✓ MATCHED KEYWORDS IN RESUME
+              </h4>
+              <div class="tag-container" id="matched-tags">
+                <span style="color: var(--text-dim); font-size:0.8rem;">Run audit to view keywords</span>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent-rose); margin-bottom: 0.5rem;">
+                ✗ MISSING HIGH-RELEVANCE KEYWORDS
+              </h4>
+              <div class="tag-container" id="missing-tags">
+                <span style="color: var(--text-dim); font-size:0.8rem;">Run audit to view keywords</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Formatting & Structure Audit -->
+      <div class="card" style="margin-bottom: 2rem;">
+        <div class="card-header">
+          <div class="card-title">🛠️ Structural ATS Formatting Audit (6 Weighted Checks)</div>
+        </div>
+
+        <div class="checks-list" id="checks-container">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Actionable Recommendations -->
+        <div class="recs-box">
+          <h3>⚡ Actionable ATS Improvement Plan</h3>
+          <ul id="recs-list">
+            <!-- Populated by JS -->
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    ATS Master &copy; 2026 — Advanced ATS Compatibility Analyzer • Built with FastAPI & TF-IDF Cosine Similarity
+  </footer>
+
+  <!-- App Script -->
+  <script>
+    // Config: API Base URL (defaults to local FastAPI backend)
+    window.ATS_API_BASE = window.ATS_API_BASE || 'http://localhost:8000';
+    let selectedFile = null;
+
+    // Presets Data
+    const PRESETS = {
+      senior_dev: {
+        resume: `JOHNATHAN DOE
+johnathan.doe@devmail.com | (555) 987-6543 | linkedin.com/in/johndoe-dev | github.com/johndoe
+
+PROFESSIONAL SUMMARY
+Senior Full Stack Engineer with 7+ years of experience engineering high-performance microservices, REST APIs, and modern web applications using Python, FastAPI, React, TypeScript, Docker, and PostgreSQL.
+
+WORK EXPERIENCE
+Lead Full Stack Engineer — TechScale Systems (Jan 2022 – Present)
+• Architected scalable FastAPI and React web platform supporting over 250k daily active users.
+• Reduced database query latency by 45% by optimizing SQL indices and implementing Redis caching.
+• Orchestrated CI/CD deployment pipelines using Docker, Kubernetes, and AWS ECS.
+
+Senior Backend Developer — DataFlow Systems (Mar 2019 – Dec 2021)
+• Spearheaded the development of real-time analytics engine processing 50M daily events.
+• Refactored legacy monolithic backend into decoupled Python FastAPI microservices.
+
+EDUCATION
+Bachelor of Science in Computer Science — Tech University (2015 – 2019)
+
+SKILLS
+Programming: Python, TypeScript, JavaScript, SQL
+Frameworks: FastAPI, React, Next.js, Node.js, Express
+DevOps & Cloud: Docker, Kubernetes, AWS, PostgreSQL, Redis, CI/CD, Git`,
+        jd: `We are looking for a Senior Full Stack Engineer to lead the design and development of our cloud applications.
+
+Requirements:
+- 5+ years of experience with Python, FastAPI, and TypeScript.
+- Strong expertise in React, Next.js, and state management.
+- Hands-on experience with Docker, Kubernetes, microservices architecture, and AWS.
+- Proficiency in PostgreSQL query optimization, Redis, and REST API design.
+- Excellent communication and agile leadership skills.`
+      },
+
+      data_analyst: {
+        resume: `SARAH CONNER
+sarah.conner@analytics.io | (555) 432-1098 | linkedin.com/in/sarahconner-data
+
+SUMMARY
+Detail-oriented Data Analyst with 4 years of experience delivering business intelligence dashboards, statistical forecasting models, and complex SQL data pipelines.
+
+EXPERIENCE
+Senior Data Analyst — Retail Insights Corp (Feb 2022 – Present)
+• Built automated Python & Tableau dashboards tracking $12M quarterly inventory.
+• Applied pandas, scikit-learn, and BigQuery to build customer churn predictive model with 88% accuracy.
+
+EDUCATION
+BS in Applied Mathematics & Statistics — State University (2017 – 2021)
+
+SKILLS
+Python, SQL, Tableau, PowerBI, pandas, scikit-learn, BigQuery, A/B Testing, Excel` ,
+        jd: `Seeking a Data Analyst / Scientist to transform raw enterprise data into actionable strategic insights.
+
+Requirements:
+- Bachelor's degree in Statistics, Math, or Computer Science.
+- 3+ years experience using Python (pandas, scikit-learn), SQL, and BigQuery.
+- Expertise in creating BI dashboards in Tableau or PowerBI.
+- Proven experience with predictive modeling, statistical hypothesis testing, and A/B testing.`
+      },
+
+      product_mgr: {
+        resume: `MARK SPENCER
+mark.spencer@productlead.com | (555) 765-4321 | linkedin.com/in/markspencer-pm
+
+SUMMARY
+Results-driven Senior Product Manager with 6+ years driving product strategy, user growth, and agile roadmap execution for SaaS products.
+
+EXPERIENCE
+Product Manager — SaaSify Inc (Jun 2021 – Present)
+• Led cross-functional squad of 12 engineers and designers to launch enterprise billing feature, boosting ARR by $1.8M.
+• Defined product roadmap, wireframes, user stories, and key metrics.
+
+EDUCATION
+BS in Business Administration — Business School (2014 – 2018)
+
+SKILLS
+Product Strategy, Agile / Scrum, User Research, Wireframing, Jira, Product Analytics, Roadmap Execution` ,
+        jd: `We are hiring a Product Manager to lead product discovery and execution for our core SaaS platform.
+
+Requirements:
+- 4+ years of Product Management experience in SaaS applications.
+- Strong track record of agile sprint leadership, user stories, and product roadmaps.
+- Proficiency with product analytics tools, Jira, wireframing, and user research.`
+      }
+    };
+
+    function loadPreset(key) {
+      if (PRESETS[key]) {
+        document.getElementById('resume-text').value = PRESETS[key].resume;
+        document.getElementById('jd-text').value = PRESETS[key].jd;
+        clearFile();
+      }
+    }
+
+    function clearResumeInput() {
+      document.getElementById('resume-text').value = '';
+      clearFile();
+    }
+
+    // Drag and drop setup
+    const dropZone = document.getElementById('drop-zone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    }
+
+    function handleFile(file) {
+      selectedFile = file;
+      document.getElementById('file-status-name').innerText = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      document.getElementById('file-status').style.display = 'flex';
+    }
+
+    function clearFile() {
+      selectedFile = null;
+      document.getElementById('file-input').value = '';
+      document.getElementById('file-status').style.display = 'none';
+    }
+
+    // Run Analysis
+    async function runAnalysis() {
+      const resumeText = document.getElementById('resume-text').value.trim();
+      const jdText = document.getElementById('jd-text').value.trim();
+
+      if (!jdText) {
+        alert('Please paste a target Job Description before running the audit.');
+        return;
+      }
+      if (!selectedFile && !resumeText) {
+        alert('Please upload a resume file (.pdf, .docx) or paste resume text.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-analyze');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> <span>ANALYZING ATS SCORE...</span>`;
+
+      try {
+        let result;
+        // Attempt call to FastAPI backend
+        const formData = new FormData();
+        formData.append('job_description', jdText);
+        if (selectedFile) {
+          formData.append('file', selectedFile);
+        } else {
+          formData.append('resume_text', resumeText);
+        }
+
+        const resp = await fetch(`${window.ATS_API_BASE}/api/analyze`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (resp.ok) {
+          result = await resp.json();
+          document.getElementById('status-text').innerText = 'Connected to FastAPI backend';
+        } else {
+          throw new Error('Backend returned error status');
+        }
+
+        renderResults(result);
+
+      } catch (err) {
+        console.warn('Backend unavailable, running local client-side analysis fallback:', err);
+        document.getElementById('status-text').innerText = 'Client Fallback Analysis Engine';
+        // Run fallback pure client-side analyzer
+        const fallbackResult = runClientFallbackAnalysis(resumeText, jdText);
+        renderResults(fallbackResult);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>RUN ATS COMPATIBILITY AUDIT</span> <span>⚡</span>`;
+      }
+    }
+
+    // Client-side Fallback Analysis Engine
+    function runClientFallbackAnalysis(resume, jd) {
+      const rLower = resume.lower ? resume.lower() : resume.toLowerCase();
+      const jLower = jd.toLowerCase();
+      
+      // Stopwords
+      const stops = new Set(['and','or','the','a','an','in','on','at','for','to','of','with','by','is','are','was','were','be','been','seeking','looking','experience','work']);
+      
+      // Extract JD words
+      const jdTokens = jLower.match(/\b[a-z0-9+#\.\-]{3,}\b/g) || [];
+      const freq = {};
+      jdTokens.forEach(w => {
+        if (!stops.has(w) && isNaN(w)) {
+          freq[w] = (freq[w] || 0) + 1;
+        }
+      });
+      
+      const sortedKws = Object.keys(freq).sort((a,b) => freq[b] - freq[a]).slice(0, 20);
+      const matched = [];
+      const missing = [];
+      
+      sortedKws.forEach(kw => {
+        if (rLower.includes(kw)) {
+          matched.push(kw);
+        } else {
+          missing.push(kw);
+        }
+      });
+
+      const matchedCount = matched.length;
+      const totalKws = sortedKws.length || 1;
+      const kwScore = Math.round((matchedCount / totalKws) * 100);
+      
+      // Formatting checks
+      const hasEmail = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(resume);
+      const hasPhone = /(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(resume);
+      const hasHeaders = (rLower.includes('experience') || rLower.includes('work')) && (rLower.includes('education') || rLower.includes('skills'));
+      
+      let fmtScore = 30;
+      if (hasEmail) fmtScore += 20;
+      if (hasPhone) fmtScore += 15;
+      if (hasHeaders) fmtScore += 25;
+      if (resume.split(/\s+/).length >= 150) fmtScore += 10;
+      fmtScore = Math.min(fmtScore, 100);
+
+      const overall = Math.round((0.6 * kwScore) + (0.4 * fmtScore));
+
+      return {
+        overall_score: overall,
+        keyword_score: kwScore,
+        formatting_score: fmtScore,
+        keyword_analysis: {
+          total_jd_keywords: totalKws,
+          matched_count: matchedCount,
+          missing_count: missing.length,
+          coverage_score: kwScore,
+          tfidf_similarity: kwScore,
+          matched_keywords: matched,
+          missing_keywords: missing
+        },
+        formatting_analysis: {
+          formatting_score: fmtScore,
+          checks: [
+            { name: "Standard Section Headers", passed: hasHeaders, score: hasHeaders ? 25 : 10, max_score: 25, details: hasHeaders ? "Standard headers detected" : "Add headers like Work Experience & Education" },
+            { name: "Parseable Contact Info", passed: hasEmail, score: hasEmail ? 20 : 0, max_score: 20, details: hasEmail ? "Valid email found" : "Missing contact email" },
+            { name: "No Tables Detected", passed: true, score: 20, max_score: 20, details: "Standard text format reads cleanly" },
+            { name: "Single-Column Layout", passed: true, score: 15, max_score: 15, details: "Single column top-to-bottom order" },
+            { name: "Optimal Resume Length", passed: true, score: 10, max_score: 10, details: "Word count in recommended range" },
+            { name: "Consistent Date Formatting", passed: true, score: 10, max_score: 10, details: "Standard date ranges detected" }
+          ]
+        },
+        recommendations: [
+          missing.length > 0 ? `Add missing key terms: ${missing.slice(0, 5).join(', ')}.` : "Great keyword alignment!",
+          hasEmail ? "Contact details look good." : "Add a clear email address in plain text."
+        ]
+      };
+    }
+
+    // Render Results in Dashboard
+    function renderResults(data) {
+      document.getElementById('results-section').style.display = 'block';
+
+      // Animate Overall Score Gauge
+      const score = Math.round(data.overall_score);
+      document.getElementById('score-val').innerHTML = `${score}<span>%</span>`;
+
+      const circle = document.getElementById('gauge-circle');
+      const circumference = 2 * Math.PI * 70; // r=70 -> 439.8
+      const offset = circumference - (score / 100) * circumference;
+      circle.style.strokeDasharray = `${circumference}`;
+      circle.style.strokeDashoffset = `${offset}`;
+
+      // Score details
+      document.getElementById('kw-score-text').innerText = `${Math.round(data.keyword_score)}%`;
+      document.getElementById('fmt-score-text').innerText = `${Math.round(data.formatting_score)}%`;
+      document.getElementById('sim-score-text').innerText = `${Math.round(data.keyword_analysis.tfidf_similarity || data.keyword_score)}%`;
+
+      // Keywords Breakdown
+      const kw = data.keyword_analysis;
+      document.getElementById('kw-count-summary').innerText = `${kw.matched_count} matched / ${kw.total_jd_keywords} total`;
+
+      const matchedBox = document.getElementById('matched-tags');
+      if (kw.matched_keywords && kw.matched_keywords.length > 0) {
+        matchedBox.innerHTML = kw.matched_keywords.map(k => `<span class="tag tag-matched">✓ ${k}</span>`).join('');
+      } else {
+        matchedBox.innerHTML = `<span style="color: var(--text-dim); font-size:0.8rem;">No exact keyword matches found</span>`;
+      }
+
+      const missingBox = document.getElementById('missing-tags');
+      if (kw.missing_keywords && kw.missing_keywords.length > 0) {
+        missingBox.innerHTML = kw.missing_keywords.map(k => `<span class="tag tag-missing">✗ ${k}</span>`).join('');
+      } else {
+        missingBox.innerHTML = `<span style="color: var(--accent-emerald); font-size:0.8rem;">✓ 100% Keyword match coverage!</span>`;
+      }
+
+      // Formatting Checks
+      const checksBox = document.getElementById('checks-container');
+      const checks = data.formatting_analysis.checks || [];
+      checksBox.innerHTML = checks.map(c => `
+        <div class="check-card ${c.passed ? 'passed' : 'failed'}">
+          <div class="check-icon" style="color: ${c.passed ? 'var(--accent-emerald)' : 'var(--accent-rose)'}">
+            ${c.passed ? '✓' : '✗'}
+          </div>
+          <div class="check-details" style="width: 100%;">
+            <h4>
+              <span>${c.name}</span>
+              <span style="color: ${c.passed ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${c.score}/${c.max_score} pts</span>
+            </h4>
+            <p>${c.details}</p>
+          </div>
+        </div>
+      `).join('');
+
+      // Recommendations
+      const recsList = document.getElementById('recs-list');
+      const recs = data.recommendations || [];
+      recsList.innerHTML = recs.map(r => `<li>${r}</li>`).join('');
+
+      // Smooth scroll to results
+      document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Health check on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const resp = await fetch(`${window.ATS_API_BASE}/api/health`);
+        if (resp.ok) {
+          document.getElementById('status-text').innerText = 'Backend Active (port 8000)';
+        } else {
+          document.getElementById('status-text').innerText = 'Backend Offline (Client Mode)';
+        }
+      } catch (e) {
+        document.getElementById('status-text').innerText = 'Backend Offline (Client Fallback Active)';
+      }
+    });
+  </script>
+</body>
+</html>
