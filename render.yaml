@@ -1,0 +1,22 @@
+services:
+  # FastAPI Backend Web Service
+  - type: web
+    name: resume-ats-backend
+    env: python
+    region: oregon
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: KEYWORD_SCORE_WEIGHT
+        value: 0.6
+      - key: FORMATTING_SCORE_WEIGHT
+        value: 0.4
+    rootDir: backend
+
+  # Static Frontend Site
+  - type: static
+    name: resume-ats-frontend
+    buildCommand: ""
+    staticPublishPath: frontend
