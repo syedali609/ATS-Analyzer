@@ -28,7 +28,7 @@ def tokenize(text: str) -> List[str]:
     """
     if not text:
         return []
-    return re.findall(r'\b[a-zA-Z0-9+#\.\-]+[a-zA-Z0-9+#]\b|\b[a-zA-Z0-9]\b', text.lower())
+    return re.findall(r'[a-zA-Z0-9_]+(?:\+\+|#|\.[a-zA-Z]+)?|[a-zA-Z0-9]+', text.lower())
 
 def get_word_count(text: str) -> int:
     """

@@ -1,6 +1,6 @@
 from typing import List
 try:
-    from pydantic_settings import BaseSettings
+    from pydantic_settings import BaseSettings, SettingsConfigDict
 except ImportError:
     from pydantic import BaseSettings
 
@@ -16,8 +16,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:8000",
         "https://resume-ats-frontend.onrender.com",
-        "https://resume-ats-backend.onrender.com",
-        "*"
+        "https://resume-ats-backend.onrender.com"
     ]
     
     # Scoring Weights
@@ -28,8 +27,6 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".txt"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file='.env', case_sensitive=True)
 
 settings = Settings()

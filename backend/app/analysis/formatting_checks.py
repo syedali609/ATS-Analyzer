@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from app.core.constants import (
     STANDARD_SECTION_HEADERS,
     EMAIL_REGEX,
@@ -18,8 +18,8 @@ def check_standard_headers(text: str) -> Tuple[bool, int, int, List[str], str]:
     found_headers = []
     
     for header in STANDARD_SECTION_HEADERS:
-        # Match header line or bullet header
-        pattern = r'(?:^|\n)\s*(?:[#*•\-]\s*)?' + re.escape(header) + r'\s*(?::|\n|$)'
+        # Match header line or bullet header, including markdown headers and bold syntax
+        pattern = r'(?:^|\n)\s*(?:[#*•\-]\s*|#{1,6}\s*)?(?:\*{1,2})?' + re.escape(header) + r'(?:\*{1,2})?\s*(?::|\n|$)'
         if re.search(pattern, text_lower, re.IGNORECASE):
             if header not in found_headers:
                 found_headers.append(header)
@@ -40,7 +40,7 @@ def check_standard_headers(text: str) -> Tuple[bool, int, int, List[str], str]:
         
     return passed, score, max_pts, found_headers, details
 
-def check_contact_info(text: str) -> Tuple[bool, int, int, str, str, str]:
+def check_contact_info(text: str) -> Tuple[bool, int, int, Optional[str], Optional[str], str]:
     """Check 2: Parseable Contact Info (20 pts)"""
     max_pts = 20
     email_match = EMAIL_REGEX.search(text)
@@ -71,7 +71,6 @@ def check_contact_info(text: str) -> Tuple[bool, int, int, str, str, str]:
         passed = False
         details = "No valid email address detected. Ensure your contact info is at the top of your resume in plain text."
         
-    has_contact = has_email
     return passed, score, max_pts, email_str, phone_str, details
 
 def check_no_tables(has_tables: bool) -> Tuple[bool, int, int, str]:
@@ -105,11 +104,8 @@ def check_word_count(word_count: int) -> Tuple[bool, int, int, str]:
 def check_date_consistency(text: str) -> Tuple[bool, int, int, str]:
     """Check 6: Consistent Date Formatting (10 pts)"""
     max_pts = 10
-    matches_found = 0
-    for pattern in DATE_PATTERNS:
-        matches = pattern.findall(text)
-        if matches:
-            matches_found += len(matches)
+    unified_pattern = r'|'.join(f"(?:{p.pattern})" for p in DATE_PATTERNS)
+    matches_found = len(list(re.finditer(unified_pattern, text)))
             
     if matches_found >= 2:
         return True, max_pts, max_pts, f"Consistent date ranges detected ({matches_found} work history dates found)."

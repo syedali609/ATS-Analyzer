@@ -1,5 +1,5 @@
 import io
-from typing import Dict, Any, Tuple
+from typing import Tuple
 import pdfplumber
 from fastapi import HTTPException
 
@@ -31,19 +31,17 @@ def parse_pdf(file_bytes: bytes) -> Tuple[str, bool, bool]:
                 if tables and len(tables) > 0:
                     has_tables = True
                 
-                # Simple column heuristic: check bounding boxes of words on page
+                # Simple column heuristic: check bounding boxes of lines on page
                 try:
-                    words = page.extract_words()
-                    if words:
+                    lines = page.extract_text_lines()
+                    if lines:
                         width = page.width
                         midpoint = width / 2.0
                         
-                        # Count words starting strictly on left vs right half in middle y-ranges
-                        left_words = sum(1 for w in words if w['x1'] < midpoint - 15)
-                        right_words = sum(1 for w in words if w['x0'] > midpoint + 15)
+                        cross_midpoint = sum(1 for line in lines if line['x0'] < midpoint and line['x1'] > midpoint)
+                        no_cross = sum(1 for line in lines if line['x1'] <= midpoint or line['x0'] >= midpoint)
                         
-                        # If significant words exist separately in both left and right columns
-                        if left_words > 25 and right_words > 25:
+                        if no_cross > cross_midpoint:
                             is_single_column = False
                 except Exception:
                     pass

@@ -46,10 +46,8 @@ async def extract_resume_content(
     
     if ext == ".pdf":
         text, has_tables, is_single_column = parse_pdf(contents)
-        return text, "pdf", has_tables, is_single_column
     elif ext == ".docx":
         text, has_tables, is_single_column = parse_docx(contents)
-        return text, "docx", has_tables, is_single_column
     elif ext == ".txt":
         try:
             text = contents.decode("utf-8", errors="ignore").strip()
@@ -57,6 +55,15 @@ async def extract_resume_content(
             raise HTTPException(status_code=400, detail="Could not read text file.")
         if not text:
             raise HTTPException(status_code=400, detail="Uploaded text file is empty.")
-        return text, "txt", False, True
+        has_tables = False
+        is_single_column = True
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported file extension '{ext}'")
+
+    if len(text.split()) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Provided resume text is too short (minimum 10 words required)."
+        )
+
+    return text, ext[1:], has_tables, is_single_column

@@ -65,7 +65,7 @@
       z-index: 999;
       background-size: 100% 4px, 6px 100%;
       pointer-events: none;
-      opacity: 0.7;
+      opacity: 0.25;
     }
 
     /* Ambient Background Glow */
@@ -188,6 +188,7 @@
       margin-bottom: 0.5rem;
       background: linear-gradient(135deg, #fff 30%, var(--text-muted) 100%);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
@@ -290,6 +291,7 @@
       border-color: var(--accent-cyan);
       background: rgba(6, 182, 212, 0.08);
     }
+    .drop-zone * { pointer-events: none; }
 
     .drop-zone-icon {
       font-size: 2.2rem;
@@ -631,7 +633,7 @@
     </div>
     <div class="status-badge" id="api-status">
       <div class="pulse-dot"></div>
-      <span id="status-text">Backend Active (port 8000)</span>
+      <span id="status-text">Connecting...</span>
     </div>
   </header>
 
@@ -661,20 +663,20 @@
           <button class="btn-preset" style="padding: 0.25rem 0.6rem;" onclick="clearResumeInput()">Clear</button>
         </div>
 
-        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Upload resume file" onclick="document.getElementById('file-input').click()">
           <div class="drop-zone-icon">📁</div>
           <p>Drag & drop your <strong>PDF</strong> or <strong>DOCX</strong> resume here</p>
           <p><span class="browse-link">or browse files from device</span></p>
-          <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;" onchange="handleFileSelect(event)">
+          <input type="file" id="file-input" aria-label="Resume document upload" accept=".pdf,.docx,.txt" style="display: none;" onchange="handleFileSelect(event)">
         </div>
 
         <div class="file-status" id="file-status">
           <span id="file-status-name">Selected: resume.pdf</span>
-          <button style="background:none; border:none; color:var(--accent-rose); cursor:pointer; font-weight:700;" onclick="clearFile()">✕</button>
+          <button aria-label="Remove selected file" style="background:none; border:none; color:var(--accent-rose); cursor:pointer; font-weight:700;" onclick="clearFile()">✕</button>
         </div>
 
         <p style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem;">OR PASTE RESUME PLAIN TEXT BELOW:</p>
-        <textarea id="resume-text" placeholder="Paste full resume text content here if not uploading a file..."></textarea>
+        <textarea id="resume-text" aria-label="Resume plain text" placeholder="Paste full resume text content here if not uploading a file..."></textarea>
       </div>
 
       <!-- Card 2: Job Description Input -->
@@ -685,7 +687,7 @@
         </div>
 
         <p style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem;">PASTE TARGET JOB DESCRIPTION OR REQUIREMENTS:</p>
-        <textarea id="jd-text" style="height: 315px;" placeholder="Paste target Job Description, required skills, responsibilities, and qualifications here..."></textarea>
+        <textarea id="jd-text" aria-label="Target job description" style="height: 315px;" placeholder="Paste target Job Description, required skills, responsibilities, and qualifications here..."></textarea>
       </div>
 
     </div>
@@ -809,18 +811,25 @@
     // Local dev: http://localhost:8000
     // Render:    https://resume-ats-backend.onrender.com
     (function() {
-      if (window.ATS_API_BASE) return; // Allow manual override
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        window.ATS_API_BASE = 'http://localhost:8000';
-      } else if (host.includes('.onrender.com')) {
-        // Frontend is on Render static site — point to the backend web service
-        window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
-      } else {
-        // Fallback: assume backend is on same origin or use Render backend
-        window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
-      }
-    })();
+  if (window.ATS_API_BASE) {
+    window.ATS_API_BASE = window.ATS_API_BASE.replace(/\/+$/, '');
+    return;
+  }
+  const host = window.location.hostname;
+  const protocol = window.location.protocol;
+  if (protocol === 'file:' || host === 'localhost' || host === '127.0.0.1' || host === '' || host === '0.0.0.0') {
+    window.ATS_API_BASE = 'http://localhost:8000';
+  } else if (host.includes('.onrender.com')) {
+    window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
+  } else {
+    window.ATS_API_BASE = window.location.origin;
+  }
+})();
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag] || tag));
+}
     let selectedFile = null;
 
     // Presets Data
@@ -916,12 +925,14 @@ Requirements:
         document.getElementById('resume-text').value = PRESETS[key].resume;
         document.getElementById('jd-text').value = PRESETS[key].jd;
         clearFile();
+        document.getElementById('results-section').style.display = 'none';
       }
     }
 
     function clearResumeInput() {
       document.getElementById('resume-text').value = '';
       clearFile();
+      document.getElementById('results-section').style.display = 'none';
     }
 
     // Drag and drop setup
@@ -946,6 +957,9 @@ Requirements:
       }
     });
 
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    window.addEventListener('drop', (e) => e.preventDefault(), false);
+
     function handleFileSelect(e) {
       if (e.target.files.length > 0) {
         handleFile(e.target.files[0]);
@@ -953,8 +967,18 @@ Requirements:
     }
 
     function handleFile(file) {
+      const allowedExtensions = ['.pdf', '.docx', '.txt'];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!allowedExtensions.includes(ext)) {
+        alert('Unsupported file format (' + ext + '). Please upload .pdf, .docx, or .txt.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File exceeds 10MB size limit.');
+        return;
+      }
       selectedFile = file;
-      document.getElementById('file-status-name').innerText = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      document.getElementById('file-status-name').innerText = 'Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
       document.getElementById('file-status').style.display = 'flex';
     }
 
@@ -968,61 +992,58 @@ Requirements:
     async function runAnalysis() {
       const resumeText = document.getElementById('resume-text').value.trim();
       const jdText = document.getElementById('jd-text').value.trim();
-
-      if (!jdText) {
-        alert('Please paste a target Job Description before running the audit.');
-        return;
-      }
-      if (!selectedFile && !resumeText) {
-        alert('Please upload a resume file (.pdf, .docx) or paste resume text.');
-        return;
-      }
+      if (!jdText) { alert('Please paste a target Job Description.'); return; }
+      if (!selectedFile && !resumeText) { alert('Please upload a resume or paste text.'); return; }
 
       const btn = document.getElementById('btn-analyze');
       btn.disabled = true;
-      btn.innerHTML = `<span class="spinner"></span> <span>ANALYZING ATS SCORE...</span>`;
+      btn.innerHTML = '<span class="spinner"></span> <span>ANALYZING...</span>';
 
+      let result = null;
       try {
-        let result;
-        // Attempt call to FastAPI backend
         const formData = new FormData();
         formData.append('job_description', jdText);
-        if (selectedFile) {
-          formData.append('file', selectedFile);
-        } else {
-          formData.append('resume_text', resumeText);
-        }
+        if (selectedFile) formData.append('file', selectedFile);
+        else formData.append('resume_text', resumeText);
 
-        const resp = await fetch(`${window.ATS_API_BASE}/api/analyze`, {
-          method: 'POST',
-          body: formData
+        const resp = await fetch(window.ATS_API_BASE + '/api/analyze', {
+          method: 'POST', body: formData, signal: AbortSignal.timeout(15000)
         });
-
         if (resp.ok) {
           result = await resp.json();
-          document.getElementById('status-text').innerText = 'Connected to FastAPI backend';
+          document.getElementById('status-text').innerText =
+            window.ATS_API_BASE.includes('localhost') ? 'Backend Active (port 8000)' : 'Backend Active (Cloud API)';
         } else {
-          throw new Error('Backend returned error status');
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Server error (' + resp.status + ')');
         }
-
-        renderResults(result);
-
       } catch (err) {
-        console.warn('Backend unavailable, running local client-side analysis fallback:', err);
-        document.getElementById('status-text').innerText = 'Client Fallback Analysis Engine';
-        // Run fallback pure client-side analyzer
-        const fallbackResult = runClientFallbackAnalysis(resumeText, jdText);
-        renderResults(fallbackResult);
+        console.warn('Backend error:', err);
+        if (selectedFile && !resumeText) {
+          alert('Backend is offline. Client fallback cannot parse PDF/DOCX files. Please paste resume text instead.');
+          btn.disabled = false;
+          btn.innerHTML = '<span>RUN ATS COMPATIBILITY AUDIT</span> <span>⚡</span>';
+          return;
+        }
+        document.getElementById('status-text').innerText = 'Client Fallback Active';
+        result = runClientFallbackAnalysis(resumeText, jdText);
+      }
+
+      try {
+        if (result) renderResults(result);
+      } catch (renderErr) {
+        console.error('Render error:', renderErr);
+        alert('Error displaying results. Check console for details.');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = `<span>RUN ATS COMPATIBILITY AUDIT</span> <span>⚡</span>`;
+        btn.innerHTML = '<span>RUN ATS COMPATIBILITY AUDIT</span> <span>⚡</span>';
       }
     }
 
     // Client-side Fallback Analysis Engine
     function runClientFallbackAnalysis(resume, jd) {
-      const rLower = resume.lower ? resume.lower() : resume.toLowerCase();
-      const jLower = jd.toLowerCase();
+      const rLower = (typeof resume === 'string' ? resume : '').toLowerCase();
+      const jLower = (typeof jd === 'string' ? jd : '').toLowerCase();
       
       // Stopwords
       const stops = new Set(['and','or','the','a','an','in','on','at','for','to','of','with','by','is','are','was','were','be','been','seeking','looking','experience','work']);
@@ -1040,12 +1061,11 @@ Requirements:
       const matched = [];
       const missing = [];
       
+      const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       sortedKws.forEach(kw => {
-        if (rLower.includes(kw)) {
-          matched.push(kw);
-        } else {
-          missing.push(kw);
-        }
+        const re = new RegExp('(^|[^a-zA-Z0-9+#.-])' + escapeRegExp(kw) + '($|[^a-zA-Z0-9+#.-])', 'i');
+        if (re.test(rLower)) matched.push(kw);
+        else missing.push(kw);
       });
 
       const matchedCount = matched.length;
@@ -1061,7 +1081,8 @@ Requirements:
       if (hasEmail) fmtScore += 20;
       if (hasPhone) fmtScore += 15;
       if (hasHeaders) fmtScore += 25;
-      if (resume.split(/\s+/).length >= 150) fmtScore += 10;
+      const wordCount = resume.trim() ? resume.trim().split(/\s+/).length : 0;
+      if (wordCount >= 150) fmtScore += 10;
       fmtScore = Math.min(fmtScore, 100);
 
       const overall = Math.round((0.6 * kwScore) + (0.4 * fmtScore));
@@ -1099,44 +1120,47 @@ Requirements:
 
     // Render Results in Dashboard
     function renderResults(data) {
+      if (!data) return;
       document.getElementById('results-section').style.display = 'block';
 
       // Animate Overall Score Gauge
-      const score = Math.round(data.overall_score);
+      const score = Math.round(data.overall_score || 0);
       document.getElementById('score-val').innerHTML = `${score}<span>%</span>`;
 
       const circle = document.getElementById('gauge-circle');
       const circumference = 2 * Math.PI * 70; // r=70 -> 439.8
       const offset = circumference - (score / 100) * circumference;
-      circle.style.strokeDasharray = `${circumference}`;
-      circle.style.strokeDashoffset = `${offset}`;
+      requestAnimationFrame(() => {
+        circle.style.strokeDasharray = `${circumference}`;
+        circle.style.strokeDashoffset = `${offset}`;
+      });
 
       // Score details
-      document.getElementById('kw-score-text').innerText = `${Math.round(data.keyword_score)}%`;
-      document.getElementById('fmt-score-text').innerText = `${Math.round(data.formatting_score)}%`;
-      document.getElementById('sim-score-text').innerText = `${Math.round(data.keyword_analysis.tfidf_similarity || data.keyword_score)}%`;
+      document.getElementById('kw-score-text').innerText = `${Math.round(data.keyword_score || 0)}%`;
+      document.getElementById('fmt-score-text').innerText = `${Math.round(data.formatting_score || 0)}%`;
+      document.getElementById('sim-score-text').innerText = `${Math.round(data.keyword_analysis?.tfidf_similarity ?? data.keyword_score || 0)}%`;
 
       // Keywords Breakdown
-      const kw = data.keyword_analysis;
-      document.getElementById('kw-count-summary').innerText = `${kw.matched_count} matched / ${kw.total_jd_keywords} total`;
+      const kw = (data.keyword_analysis || {});
+      document.getElementById('kw-count-summary').innerText = `${kw.matched_count || 0} matched / ${kw.total_jd_keywords || 0} total`;
 
       const matchedBox = document.getElementById('matched-tags');
       if (kw.matched_keywords && kw.matched_keywords.length > 0) {
-        matchedBox.innerHTML = kw.matched_keywords.map(k => `<span class="tag tag-matched">✓ ${k}</span>`).join('');
+        matchedBox.innerHTML = (kw.matched_keywords || []).map(k => `<span class="tag tag-matched">✓ ${escapeHTML(k)}</span>`).join('');
       } else {
         matchedBox.innerHTML = `<span style="color: var(--text-dim); font-size:0.8rem;">No exact keyword matches found</span>`;
       }
 
       const missingBox = document.getElementById('missing-tags');
       if (kw.missing_keywords && kw.missing_keywords.length > 0) {
-        missingBox.innerHTML = kw.missing_keywords.map(k => `<span class="tag tag-missing">✗ ${k}</span>`).join('');
+        missingBox.innerHTML = (kw.missing_keywords || []).map(k => `<span class="tag tag-missing">✗ ${escapeHTML(k)}</span>`).join('');
       } else {
         missingBox.innerHTML = `<span style="color: var(--accent-emerald); font-size:0.8rem;">✓ 100% Keyword match coverage!</span>`;
       }
 
       // Formatting Checks
       const checksBox = document.getElementById('checks-container');
-      const checks = data.formatting_analysis.checks || [];
+      const checks = (data.formatting_analysis?.checks || []);
       checksBox.innerHTML = checks.map(c => `
         <div class="check-card ${c.passed ? 'passed' : 'failed'}">
           <div class="check-icon" style="color: ${c.passed ? 'var(--accent-emerald)' : 'var(--accent-rose)'}">
@@ -1144,18 +1168,18 @@ Requirements:
           </div>
           <div class="check-details" style="width: 100%;">
             <h4>
-              <span>${c.name}</span>
+              <span>${escapeHTML(c.name)}</span>
               <span style="color: ${c.passed ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${c.score}/${c.max_score} pts</span>
             </h4>
-            <p>${c.details}</p>
+            <p>${escapeHTML(c.details)}</p>
           </div>
         </div>
       `).join('');
 
       // Recommendations
       const recsList = document.getElementById('recs-list');
-      const recs = data.recommendations || [];
-      recsList.innerHTML = recs.map(r => `<li>${r}</li>`).join('');
+      const recs = (data.recommendations || []);
+      recsList.innerHTML = recs.map(r => `<li>${escapeHTML(r)}</li>`).join('');
 
       // Smooth scroll to results
       document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
@@ -1166,12 +1190,16 @@ Requirements:
       try {
         const resp = await fetch(`${window.ATS_API_BASE}/api/health`);
         if (resp.ok) {
-          document.getElementById('status-text').innerText = 'Backend Active (port 8000)';
+          document.getElementById('status-text').innerText = window.ATS_API_BASE.includes('localhost') ? 'Backend Active (port 8000)' : 'Backend Active (Cloud API)';
         } else {
           document.getElementById('status-text').innerText = 'Backend Offline (Client Mode)';
+          document.querySelector('.pulse-dot').style.backgroundColor = 'var(--accent-amber)';
+          document.querySelector('.pulse-dot').style.boxShadow = '0 0 8px var(--accent-amber)';
         }
       } catch (e) {
         document.getElementById('status-text').innerText = 'Backend Offline (Client Fallback Active)';
+        document.querySelector('.pulse-dot').style.backgroundColor = 'var(--accent-amber)';
+        document.querySelector('.pulse-dot').style.boxShadow = '0 0 8px var(--accent-amber)';
       }
     });
   </script>

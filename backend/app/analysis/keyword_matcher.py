@@ -17,6 +17,9 @@ except ImportError:
 def stem_word(w: str) -> str:
     """Simple lightweight suffix stemmer to unify plurals and verb forms."""
     w = w.lower()
+    protected_words = {'string', 'spring', 'bring', 'speed', 'breed', 'freed', 'greed', 'during', 'being', 'nothing', 'something', 'everything', 'king', 'ring', 'thing', 'sing'}
+    if w in protected_words:
+        return w
     if len(w) > 4:
         if w.endswith("ies"): return w[:-3] + "y"
         if w.endswith("ses") or w.endswith("xes") or w.endswith("ches") or w.endswith("shes"): return w[:-2]
@@ -60,22 +63,25 @@ def extract_top_keywords(
             uni_filtered.sort(key=lambda x: x[1], reverse=True)
             
             # Bigram extraction
-            bi_vectorizer = TfidfVectorizer(
-                ngram_range=(2, 2),
-                stop_words=custom_stopwords,
-                min_df=1,
-                token_pattern=r'(?u)\b[a-zA-Z0-9+#\.\-]{2,}\b'
-            )
-            bi_tfidf = bi_vectorizer.fit_transform([jd_clean])
-            bi_names = bi_vectorizer.get_feature_names_out()
-            bi_scores = bi_tfidf.toarray()[0]
-            
-            bi_list = [(bi_names[i], float(bi_scores[i])) for i in range(len(bi_names))]
-            bi_filtered = [
-                (kw, score) for kw, score in bi_list
-                if not kw.isdigit() and len(kw) > 4
-            ]
-            bi_filtered.sort(key=lambda x: x[1], reverse=True)
+            try:
+                bi_vectorizer = TfidfVectorizer(
+                    ngram_range=(2, 2),
+                    stop_words=custom_stopwords,
+                    min_df=1,
+                    token_pattern=r'(?u)\b[a-zA-Z0-9+#\.\-]{2,}\b'
+                )
+                bi_tfidf = bi_vectorizer.fit_transform([jd_clean])
+                bi_names = bi_vectorizer.get_feature_names_out()
+                bi_scores = bi_tfidf.toarray()[0]
+                
+                bi_list = [(bi_names[i], float(bi_scores[i])) for i in range(len(bi_names))]
+                bi_filtered = [
+                    (kw, score) for kw, score in bi_list
+                    if not kw.isdigit() and len(kw) > 4
+                ]
+                bi_filtered.sort(key=lambda x: x[1], reverse=True)
+            except Exception:
+                bi_filtered = []
             
             # Blend top unigrams (70%) and top bigrams (30%)
             top_unis = uni_filtered[:int(max_features * 0.7)]
@@ -205,7 +211,7 @@ def match_keywords(
             in_resume = True
         else:
             kw_words = kw_lower.split()
-            if all(stem_word(w) in res_stemmed_tokens or any(stem_word(w) in t for t in res_tokens) for w in kw_words):
+            if all(stem_word(w) in res_stemmed_tokens or w in res_tokens for w in kw_words):
                 in_resume = True
         
         detail = KeywordMatchDetail(

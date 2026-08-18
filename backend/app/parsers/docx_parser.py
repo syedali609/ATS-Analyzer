@@ -30,8 +30,9 @@ def parse_docx(file_bytes: bytes) -> Tuple[str, bool, bool]:
         # DOCX column detection heuristic from section properties
         is_single_column = True
         try:
+            NS = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
             for section in doc.sections:
-                cols = section._sectPr.xpath('./w:cols/@w:num')
+                cols = section._sectPr.xpath('./w:cols/@w:num', namespaces=NS)
                 if cols and int(cols[0]) > 1:
                     is_single_column = False
                     break

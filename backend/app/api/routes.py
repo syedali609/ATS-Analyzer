@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
-from app.models.schemas import AnalysisResponse, HealthCheck, AnalyzeRequest
+from app.models.schemas import AnalysisResponse, HealthCheck
 from app.parsers.base_parser import extract_resume_content
 from app.analysis.keyword_matcher import match_keywords
 from app.analysis.formatting_checks import evaluate_formatting
@@ -17,8 +17,7 @@ async def health_check():
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
     job_description: Optional[str] = Form(None),
-    resume_text: Optional[str] = Form(None),
-    body_request: Optional[AnalyzeRequest] = Body(None)
+    resume_text: Optional[str] = Form(None)
 ):
     """
     Main endpoint for analyzing a resume against a job description.
@@ -26,13 +25,6 @@ async def analyze_resume(
     """
     jd_input = job_description
     res_input = resume_text
-    
-    # Check if request came as JSON body
-    if body_request:
-        if not jd_input:
-            jd_input = body_request.job_description
-        if not res_input:
-            res_input = body_request.resume_text
             
     if not jd_input or not jd_input.strip():
         raise HTTPException(
