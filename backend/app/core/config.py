@@ -9,13 +9,14 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_PREFIX: str = "/api"
     
-    # CORS Configuration
+    # CORS Configuration — local dev + Render deployed frontend
     CORS_ORIGINS: List[str] = [
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "http://localhost:3000",
         "http://localhost:8000",
-        "file://",
+        "https://resume-ats-frontend.onrender.com",
+        "https://resume-ats-backend.onrender.com",
         "*"
     ]
     

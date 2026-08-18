@@ -805,7 +805,22 @@
   <!-- App Script -->
   <script>
     // Config: API Base URL (defaults to local FastAPI backend)
-    window.ATS_API_BASE = window.ATS_API_BASE || 'http://localhost:8000';
+    // Auto-detect backend URL based on environment
+    // Local dev: http://localhost:8000
+    // Render:    https://resume-ats-backend.onrender.com
+    (function() {
+      if (window.ATS_API_BASE) return; // Allow manual override
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        window.ATS_API_BASE = 'http://localhost:8000';
+      } else if (host.includes('.onrender.com')) {
+        // Frontend is on Render static site — point to the backend web service
+        window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
+      } else {
+        // Fallback: assume backend is on same origin or use Render backend
+        window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
+      }
+    })();
     let selectedFile = null;
 
     // Presets Data
