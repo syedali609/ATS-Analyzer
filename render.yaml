@@ -1,22 +1,22 @@
 services:
-  # FastAPI Backend Web Service
+  # FastAPI Backend
   - type: web
     name: resume-ats-backend
-    env: python
+    runtime: docker
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.5
-      - key: KEYWORD_SCORE_WEIGHT
-        value: 0.6
-      - key: FORMATTING_SCORE_WEIGHT
-        value: 0.4
     rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: KEYWORD_SCORE_WEIGHT
+        value: "0.6"
+      - key: FORMATTING_SCORE_WEIGHT
+        value: "0.4"
 
-  # Static Frontend Site
-  - type: static
+  # Static Frontend
+  - type: web
     name: resume-ats-frontend
+    runtime: static
+    rootDir: .
     buildCommand: ""
-    staticPublishPath: frontend
+    staticPublishPath: ./frontend
