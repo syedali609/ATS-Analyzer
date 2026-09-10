@@ -809,22 +809,26 @@
     // Config: API Base URL (defaults to local FastAPI backend)
     // Auto-detect backend URL based on environment
     // Local dev: http://localhost:8000
-    // Render:    https://resume-ats-backend.onrender.com
+    // Render:    https://ats-analyzer-1-hz75.onrender.com
     (function() {
   if (window.ATS_API_BASE) {
     window.ATS_API_BASE = window.ATS_API_BASE.replace(/\/+$/, '');
     return;
   }
   const host = window.location.hostname;
-  const protocol = window.location.protocol;
-  if (protocol === 'file:' || host === 'localhost' || host === '127.0.0.1' || host === '' || host === '0.0.0.0') {
-    window.ATS_API_BASE = 'http://localhost:8000';
-  } else if (host.includes('.onrender.com')) {
-    window.ATS_API_BASE = 'https://resume-ats-backend.onrender.com';
-  } else {
-    window.ATS_API_BASE = window.location.origin;
-  }
-})();
+const protocol = window.location.protocol;
+
+if (
+  protocol === 'file:' ||
+  host === 'localhost' ||
+  host === '127.0.0.1' ||
+  host === '' ||
+  host === '0.0.0.0'
+) {
+  window.ATS_API_BASE = 'http://localhost:8000';
+} else {
+  window.ATS_API_BASE = 'https://ats-analyzer-1-hz75.onrender.com';
+}
 
 function escapeHTML(str) {
   if (!str) return '';
