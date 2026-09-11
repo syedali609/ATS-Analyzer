@@ -1142,7 +1142,7 @@ Requirements:
       // Score details
       document.getElementById('kw-score-text').innerText = `${Math.round(data.keyword_score || 0)}%`;
       document.getElementById('fmt-score-text').innerText = `${Math.round(data.formatting_score || 0)}%`;
-      document.getElementById('sim-score-text').innerText = `${Math.round(data.keyword_analysis?.tfidf_similarity ?? data.keyword_score || 0)}%`;
+      document.getElementById('sim-score-text').innerText = `${Math.round((data.keyword_analysis?.tfidf_similarity ?? data.keyword_score) || 0)}%`;
 
       // Keywords Breakdown
       const kw = (data.keyword_analysis || {});
