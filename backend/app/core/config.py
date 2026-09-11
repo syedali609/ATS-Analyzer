@@ -13,7 +13,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:8000",
         "https://resume-ats-frontend.onrender.com",
-        "https://resume-ats-backend.onrender.com"
+        "https://resume-ats-backend.onrender.com",
+        "https://ats-analyzer-teal.vercel.app"
     ]
     
     # Scoring Weights
